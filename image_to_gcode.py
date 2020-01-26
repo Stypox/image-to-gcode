@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 #pylint: disable=no-member
-# TODO invert image
 
 import numpy as np
 from scipy import ndimage
@@ -125,7 +124,7 @@ def testEdges():
 	edges = np.zeros((np.shape(image)[1], np.shape(image)[0]), dtype=bool)
 
 	for x, y in np.ndindex(np.shape(image)[0:2]):
-		edges[y][x] = (image[x][y][0] < 128 and image[x][y][1] < 128 and image[x][y][2] < 128)
+		edges[y][x] = (image[x][y][0] > 128 and image[x][y][1] > 128 and image[x][y][2] > 128)
 	
 	return edges
 
