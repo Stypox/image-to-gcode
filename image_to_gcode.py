@@ -84,7 +84,7 @@ class EdgesToGcode:
 			ranges.pop() # the last range is now contained in the first one
 		return ranges
 	
-	def nextPoints(self, point):
+	def getNextPoints(self, point):
 		"""
 		Returns the radius of the circle used to identify the points and
 		the points toward which propagate, in a tuple `(radius, [point0, point1, ...])`
@@ -116,7 +116,28 @@ class EdgesToGcode:
 		return bestRadius, points
 					
 	def propagate(self, point):
-		pass
+		print(point)
+		radius, nextPoints = self.getNextPoints(point)
+
+		# depth first search to mark all reachable and connected pixels as "seen"
+		def setSeenDFS(x, y):
+			if (x in range(self.xSize) and y in range(self.ySize)
+					and np.hypot(x-point[0], y-point[1]) <= radius + 0.5
+					and self.edges[x, y] == True and not self.seen[x, y]):
+				self.seen[x, y] = True
+				setSeenDFS(x+1, y)
+				setSeenDFS(x-1, y)
+				setSeenDFS(x, y+1)
+				setSeenDFS(x, y-1)
+		self.seen[point] = False
+		setSeenDFS(*point)
+	
+		for nextPoint in nextPoints:
+			if self.seen[nextPoint]:
+				# only if this point became "seen" after the DFS, therefore it is connected
+				self.propagate(nextPoint)
+
+			
 
 
 def pokeballEdges():
@@ -153,7 +174,8 @@ def main():
 		sections = converter.toCircularRanges(circularArray)
 		print(sections)
 	
-	print(converter.nextPoints((14,7)))
+	print(converter.getNextPoints((14,7)))
+	converter.propagate((14,7))
 
 	#print(", ".join([str(c)[1:-1] for c in constants.circumferences]))
 
