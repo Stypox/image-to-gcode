@@ -25,6 +25,16 @@ def sobel(image, threshold):
 	result[(G[:, :, 0] + G[:, :, 1] + G[:, :, 2] + G[:, :, 3]) >= threshold] = True
 	return result
 
+class CircularRange:
+	def __init__(self, begin, end, value):
+		self.begin, self.end, self.value = begin, end, value
+
+	def __repr__(self):
+		return f"[{self.begin},{self.end})->{self.value}"
+	
+	def halfway(self):
+		return int((self.begin + self.end) / 2)
+
 
 class EdgesToGcode:
 	def __init__(self, edges):
@@ -59,22 +69,20 @@ class EdgesToGcode:
 		return circularArray
 
 	def toCircularRanges(self, circularArray):
-		ranges = [0]
+		ranges = []
 		circumferenceSize = np.shape(circularArray)[0]
 
-		lastValue = circularArray[0]
+		lastValue, lastValueIndex = circularArray[0], 0
 		for i in range(1, circumferenceSize):
 			if circularArray[i] != lastValue:
-				ranges[-1] = (ranges[-1], i, lastValue)
-				ranges.append(i)
-				lastValue = circularArray[i]
+				ranges.append(CircularRange(lastValueIndex, i, lastValue))
+				lastValue, lastValueIndex = circularArray[i], i
 		
-		ranges[-1] = (ranges[-1], circumferenceSize, lastValue)
-		if len(ranges) > 1 and ranges[-1][2] == ranges[0][2]:
-			ranges[0] = (ranges[-1][0] - circumferenceSize, ranges[0][1], ranges[0][2])
-			return ranges[:-1]
-		else:
-			return ranges
+		ranges.append(CircularRange(lastValueIndex, circumferenceSize, lastValue))
+		if len(ranges) > 1 and ranges[-1].value == ranges[0].value:
+			ranges[0].begin = ranges[-1].begin - circumferenceSize
+			ranges.pop() # the last range is now contained in the first one
+		return ranges
 	
 	def nextPoints(self, point):
 		"""
@@ -91,14 +99,14 @@ class EdgesToGcode:
 			if len(allRanges[radius]) > len(allRanges[bestRadius]):
 				bestRadius = radius
 			if len(allRanges[radius]) > 1 and len(allRanges[-1]) == len(allRanges[-2]):
-				# two consecutive circular arrays with the same number>1 of sections
+				# two consecutive circular arrays with the same number>1 of ranges
 				break
 		
 		circularRanges = allRanges[bestRadius]
 		points = []
 		for circularRange in circularRanges:
-			if circularRange[2] == True:
-				circumferenceIndex = int((circularRange[0] + circularRange[1]) / 2)
+			if circularRange.value == True:
+				circumferenceIndex = circularRange.halfway()
 				x = point[0] + constants.circumferences[circumferenceIndex][0]
 				y = point[1] + constants.circumferences[circumferenceIndex][1]
 
@@ -137,12 +145,12 @@ def main():
 		print("cɔ" if edges[x,y] else "  ", end="")
 	print("\n-----------------")
 
-	circularSectionsArray = None
+	circularArray = None
 	converter = EdgesToGcode(edges)
 	for i in range(11):
-		circularSectionsArray = converter.getCircularSectionsArray((14, 7), i, circularSectionsArray)
-		#print(circularSectionsArray)
-		sections = converter.circularSectionsRanges(circularSectionsArray)
+		circularArray = converter.getCircularArray((14, 7), i, circularArray)
+		#print(circularArray)
+		sections = converter.toCircularRanges(circularArray)
 		print(sections)
 
 	#print(", ".join([str(c)[1:-1] for c in constants.circumferences]))
