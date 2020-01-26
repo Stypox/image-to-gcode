@@ -32,49 +32,49 @@ class EdgesToGcode:
 		self.seen = np.zeros(np.shape(edges), dtype=bool)
 		self.xSize, self.ySize = np.shape(edges)
 	
-	def getCircularSectionsArray(self, center, r, smallerArray = None):
+	def getCircularArray(self, center, r, smallerArray = None):
 		circumferenceSize = len(constants.circumferences[r])
-		sectionsArray = np.zeros(circumferenceSize, dtype=bool)
+		circularArray = np.zeros(circumferenceSize, dtype=bool)
 
 		if smallerArray is None:
 			smallerArray = np.ones(1, dtype=bool)
 		smallerSize = np.shape(smallerArray)[0]
-		smallerCurrentRatio = smallerSize / circumferenceSize
+		smallerToCurrentRatio = smallerSize / circumferenceSize
 
 		for i in range(circumferenceSize):
 			x = center[0] + constants.circumferences[r][i][0]
 			y = center[1] + constants.circumferences[r][i][1]
 
 			if x not in range(self.xSize) or y not in range(self.ySize):
-				sectionsArray[i] = False # consider pixels outside of the image as not-edges
+				circularArray[i] = False # consider pixels outside of the image as not-edges
 			else:
-				iSmaller = i * smallerCurrentRatio
+				iSmaller = i * smallerToCurrentRatio
 				a, b = int(np.floor(iSmaller)), int(np.ceil(iSmaller))
 				
 				if smallerArray[a] == False and (b not in range(smallerSize) or smallerArray[b] == False):
-					sectionsArray[i] = False # do not take into consideration not connected regions (roughly)
+					circularArray[i] = False # do not take into consideration not connected regions (roughly)
 				else:
-					sectionsArray[i] = self.edges[x, y]
+					circularArray[i] = self.edges[x, y]
 		
-		return sectionsArray
+		return circularArray
 
-	def circularSectionsRanges(self, circularSectionsArray):
-		sections = [0]
-		circumferenceSize = np.shape(circularSectionsArray)[0]
+	def toCircularRanges(self, circularArray):
+		ranges = [0]
+		circumferenceSize = np.shape(circularArray)[0]
 
-		lastValue = circularSectionsArray[0]
+		lastValue = circularArray[0]
 		for i in range(1, circumferenceSize):
-			if circularSectionsArray[i] != lastValue:
-				sections[-1] = (sections[-1], i, lastValue)
-				sections.append(i)
-				lastValue = circularSectionsArray[i]
+			if circularArray[i] != lastValue:
+				ranges[-1] = (ranges[-1], i, lastValue)
+				ranges.append(i)
+				lastValue = circularArray[i]
 		
-		sections[-1] = (sections[-1], circumferenceSize, lastValue)
-		if len(sections) > 1 and sections[-1][2] == sections[0][2]:
-			sections[0] = (sections[-1][0] - circumferenceSize, sections[0][1], sections[0][2])
-			return sections[:-1]
+		ranges[-1] = (ranges[-1], circumferenceSize, lastValue)
+		if len(ranges) > 1 and ranges[-1][2] == ranges[0][2]:
+			ranges[0] = (ranges[-1][0] - circumferenceSize, ranges[0][1], ranges[0][2])
+			return ranges[:-1]
 		else:
-			return sections
+			return ranges
 	
 	def nextPoints(self, point):
 		"""
@@ -83,22 +83,22 @@ class EdgesToGcode:
 		"""
 
 		bestRadius = 0
-		circularSectionsArray = self.getCircularSectionsArray(point, 0)
-		allSections = [self.circularSectionsRanges(circularSectionsArray)]
+		circularArray = self.getCircularArray(point, 0)
+		allRanges = [self.circularRanges(circularArray)]
 		for radius in range(1, len(constants.circumferences)):
-			circularSectionsArray = self.getCircularSectionsArray(point, radius, circularSectionsArray)
-			allSections.append(self.circularSectionsRanges(circularSectionsArray))
-			if len(allSections[radius]) > len(allSections[bestRadius]):
+			circularArray = self.getCircularArray(point, radius, circularArray)
+			allRanges.append(self.circularRanges(circularArray))
+			if len(allRanges[radius]) > len(allRanges[bestRadius]):
 				bestRadius = radius
-			if len(allSections[radius]) > 1 and len(allSections[-1]) == len(allSections[-2]):
+			if len(allRanges[radius]) > 1 and len(allRanges[-1]) == len(allRanges[-2]):
 				# two consecutive circular arrays with the same number>1 of sections
 				break
 		
-		sections = allSections[bestRadius]
+		circularRanges = allRanges[bestRadius]
 		points = []
-		for section in sections:
-			if section[2] == True:
-				circumferenceIndex = int((section[0] + section[1]) / 2) # floor
+		for circularRange in circularRanges:
+			if circularRange[2] == True:
+				circumferenceIndex = int((circularRange[0] + circularRange[1]) / 2)
 				x = point[0] + constants.circumferences[circumferenceIndex][0]
 				y = point[1] + constants.circumferences[circumferenceIndex][1]
 
