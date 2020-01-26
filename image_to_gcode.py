@@ -92,10 +92,10 @@ class EdgesToGcode:
 
 		bestRadius = 0
 		circularArray = self.getCircularArray(point, 0)
-		allRanges = [self.circularRanges(circularArray)]
+		allRanges = [self.toCircularRanges(circularArray)]
 		for radius in range(1, len(constants.circumferences)):
 			circularArray = self.getCircularArray(point, radius, circularArray)
-			allRanges.append(self.circularRanges(circularArray))
+			allRanges.append(self.toCircularRanges(circularArray))
 			if len(allRanges[radius]) > len(allRanges[bestRadius]):
 				bestRadius = radius
 			if len(allRanges[radius]) > 1 and len(allRanges[-1]) == len(allRanges[-2]):
@@ -107,8 +107,8 @@ class EdgesToGcode:
 		for circularRange in circularRanges:
 			if circularRange.value == True:
 				circumferenceIndex = circularRange.halfway()
-				x = point[0] + constants.circumferences[circumferenceIndex][0]
-				y = point[1] + constants.circumferences[circumferenceIndex][1]
+				x = point[0] + constants.circumferences[bestRadius][circumferenceIndex][0]
+				y = point[1] + constants.circumferences[bestRadius][circumferenceIndex][1]
 
 				if x in range(self.xSize) and y in range(self.ySize) and not self.seen[x, y]:
 					points.append((x,y))
@@ -152,6 +152,8 @@ def main():
 		#print(circularArray)
 		sections = converter.toCircularRanges(circularArray)
 		print(sections)
+	
+	print(converter.nextPoints((14,7)))
 
 	#print(", ".join([str(c)[1:-1] for c in constants.circumferences]))
 
