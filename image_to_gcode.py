@@ -26,51 +26,54 @@ def sobel(image, threshold):
 	return result
 
 
-def getCircularSectionsArray(edges, x0, y0, r, smallerArray = None):
-	xSize, ySize = np.shape(edges)
-	circumferenceSize = len(constants.circumferences[r])
-	sectionsArray = np.zeros(circumferenceSize, dtype=bool)
+class EdgesToGcode:
+	def __init__(self, edges):
+		self.edges = edges
+		self.xSize, self.ySize = np.shape(edges)
+	
+	def getCircularSectionsArray(self, center, r, smallerArray = None):
+		circumferenceSize = len(constants.circumferences[r])
+		sectionsArray = np.zeros(circumferenceSize, dtype=bool)
 
-	if smallerArray is None:
-		smallerArray = np.ones(1, dtype=bool)
-	smallerSize = np.shape(smallerArray)[0]
-	smallerCurrentRatio = smallerSize / circumferenceSize
+		if smallerArray is None:
+			smallerArray = np.ones(1, dtype=bool)
+		smallerSize = np.shape(smallerArray)[0]
+		smallerCurrentRatio = smallerSize / circumferenceSize
 
-	for i in range(circumferenceSize):
-		x = x0 + constants.circumferences[r][i][0]
-		y = y0 + constants.circumferences[r][i][1]
+		for i in range(circumferenceSize):
+			x = center[0] + constants.circumferences[r][i][0]
+			y = center[1] + constants.circumferences[r][i][1]
 
-		if x not in range(0, xSize) or y not in range(0, ySize):
-			sectionsArray[i] = False # consider pixels outside of the image as not-edges
-		else:
-			iSmaller = i * smallerCurrentRatio
-			a, b = int(np.floor(iSmaller)), int(np.ceil(iSmaller))
-			
-			if smallerArray[a] == False and (b not in range(smallerSize) or smallerArray[b] == False):
-				sectionsArray[i] = False # do not take into consideration not connected regions (roughly)
+			if x not in range(self.xSize) or y not in range(self.ySize):
+				sectionsArray[i] = False # consider pixels outside of the image as not-edges
 			else:
-				sectionsArray[i] = edges[x, y]
-	
-	return sectionsArray
+				iSmaller = i * smallerCurrentRatio
+				a, b = int(np.floor(iSmaller)), int(np.ceil(iSmaller))
+				
+				if smallerArray[a] == False and (b not in range(smallerSize) or smallerArray[b] == False):
+					sectionsArray[i] = False # do not take into consideration not connected regions (roughly)
+				else:
+					sectionsArray[i] = self.edges[x, y]
+		
+		return sectionsArray
 
+	def circularSectionsRanges(self, circularSectionsArray):
+		sections = [0]
+		circumferenceSize = np.shape(circularSectionsArray)[0]
 
-def circularSectionsRanges(circularSectionsArray):
-	sections = [0]
-	circumferenceSize = np.shape(circularSectionsArray)[0]
-
-	lastValue = circularSectionsArray[0]
-	for i in range(1, circumferenceSize):
-		if circularSectionsArray[i] != lastValue:
-			sections[-1] = (sections[-1], i, lastValue)
-			sections.append(i)
-			lastValue = circularSectionsArray[i]
-	
-	sections[-1] = (sections[-1], circumferenceSize, lastValue)
-	if len(sections) > 1 and sections[-1][2] == sections[0][2]:
-		sections[0] = (sections[-1][0] - circumferenceSize, sections[0][1], sections[0][2])
-		return sections[:-1]
-	else:
-		return sections
+		lastValue = circularSectionsArray[0]
+		for i in range(1, circumferenceSize):
+			if circularSectionsArray[i] != lastValue:
+				sections[-1] = (sections[-1], i, lastValue)
+				sections.append(i)
+				lastValue = circularSectionsArray[i]
+		
+		sections[-1] = (sections[-1], circumferenceSize, lastValue)
+		if len(sections) > 1 and sections[-1][2] == sections[0][2]:
+			sections[0] = (sections[-1][0] - circumferenceSize, sections[0][1], sections[0][2])
+			return sections[:-1]
+		else:
+			return sections
 
 
 def pokeballEdges():
@@ -107,6 +110,6 @@ def main():
 		print(sections)
 
 	#print(", ".join([str(c)[1:-1] for c in constants.circumferences]))
-	
+
 if __name__ == "__main__":
 	main()
