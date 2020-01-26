@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 #pylint: disable=no-member
+# TODO invert image
 
 import numpy as np
 from scipy import ndimage
@@ -29,6 +30,7 @@ def sobel(image, threshold):
 class EdgesToGcode:
 	def __init__(self, edges):
 		self.edges = edges
+		self.seen = np.zeros(np.shape(edges), dtype=bool)
 		self.xSize, self.ySize = np.shape(edges)
 	
 	def getCircularSectionsArray(self, center, r, smallerArray = None):
@@ -74,6 +76,40 @@ class EdgesToGcode:
 			return sections[:-1]
 		else:
 			return sections
+	
+	def nextPoints(self, point):
+		"""
+		Returns the radius of the circle used to identify the points and
+		the points toward which propagate, in a tuple `(radius, [point0, point1, ...])`
+		"""
+
+		bestRadius = 0
+		circularSectionsArray = self.getCircularSectionsArray(point, 0)
+		allSections = [self.circularSectionsRanges(circularSectionsArray)]
+		for radius in range(1, len(constants.circumferences)):
+			circularSectionsArray = self.getCircularSectionsArray(point, radius, circularSectionsArray)
+			allSections.append(self.circularSectionsRanges(circularSectionsArray))
+			if len(allSections[radius]) > len(allSections[bestRadius]):
+				bestRadius = radius
+			if len(allSections[radius]) > 1 and len(allSections[-1]) == len(allSections[-2]):
+				# two consecutive circular arrays with the same number>1 of sections
+				break
+		
+		sections = allSections[bestRadius]
+		points = []
+		for section in sections:
+			if section[2] == True:
+				circumferenceIndex = int((section[0] + section[1]) / 2) # floor
+				x = point[0] + constants.circumferences[circumferenceIndex][0]
+				y = point[1] + constants.circumferences[circumferenceIndex][1]
+
+				if x in range(self.xSize) and y in range(self.ySize) and not self.seen[x, y]:
+					points.append((x,y))
+		
+		return bestRadius, points
+					
+	def propagate(self, point):
+		pass
 
 
 def pokeballEdges():
@@ -103,10 +139,11 @@ def main():
 	print("\n-----------------")
 
 	circularSectionsArray = None
+	converter = EdgesToGcode(edges)
 	for i in range(11):
-		circularSectionsArray = getCircularSectionsArray(edges, 14, 7, i, circularSectionsArray)
+		circularSectionsArray = converter.getCircularSectionsArray((14, 7), i, circularSectionsArray)
 		#print(circularSectionsArray)
-		sections = circularSectionsRanges(circularSectionsArray)
+		sections = converter.circularSectionsRanges(circularSectionsArray)
 		print(sections)
 
 	#print(", ".join([str(c)[1:-1] for c in constants.circumferences]))
