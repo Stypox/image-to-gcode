@@ -37,12 +37,17 @@ class CircularRange:
 		return int((self.begin + self.end) / 2)
 
 class Node:
-	def __init__(self, point):
+	def __init__(self, point, index):
 		self.x, self.y = point
+		self.index = index
 		self.connections = []
 
 	def __repr__(self):
-		return f"({self.y},{32-self.x})"
+		return f"({self.y},{-self.x})"
+	
+	def toDotFormat(self):
+		return (f"{self.index} [pos=\"{self.y},{-self.x}!\"]\n" +
+			"".join(f"{self.index}--{conn}\n" for conn in self.connections if conn >= self.index))
 
 	def addConnection(self, to):
 		self.connections.append(to)
@@ -131,7 +136,7 @@ class EdgesToGcode:
 
 	def propagate(self, point):
 		currentNodeIndex = len(self.graph)
-		self.graph.append(Node(point))
+		self.graph.append(Node(point, currentNodeIndex))
 		radius, nextPoints = self.getNextPoints(point)
 
 		# depth first search to set the owner of all reachable connected pixels
@@ -177,6 +182,13 @@ class EdgesToGcode:
 							self.propagate(nextPoint)
 		
 		return self.graph
+	
+	def saveGraphToDotFile(self, filename):
+		with open(filename, "w") as f:
+			f.write("graph G {\nnode [shape=plaintext];\n")
+			for node in self.graph:
+				f.write(node.toDotFormat())
+			f.write("}\n")
 
 
 
@@ -200,11 +212,12 @@ def testEdges():
 def main():
 	edges = testEdges()
 
-	print("-----------------")
-	for x, y in np.ndindex(np.shape(edges)):
-		if y == 0 and x != 0: print()
-		print("cɔ" if edges[x,y] else "  ", end="")
-	print("\n-----------------")
+	if np.shape(edges)[0] < 50 and np.shape(edges)[1] < 50:
+		print("-----------------")
+		for x, y in np.ndindex(np.shape(edges)):
+			if y == 0 and x != 0: print()
+			print("cɔ" if edges[x,y] else "  ", end="")
+		print("\n-----------------")
 
 	circularArray = None
 	converter = EdgesToGcode(edges)
@@ -218,6 +231,7 @@ def main():
 	converter.graph = []
 	converter.buildGraph()
 	print(converter.graph)
+	converter.saveGraphToDotFile("graph.dot")
 
 if __name__ == "__main__":
 	main()
