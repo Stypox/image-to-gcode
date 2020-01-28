@@ -25,6 +25,7 @@ def sobel(image, threshold):
 	result[(G[:, :, 0] + G[:, :, 1] + G[:, :, 2] + G[:, :, 3]) >= threshold] = True
 	return result
 
+
 class CircularRange:
 	def __init__(self, begin, end, value):
 		self.begin, self.end, self.value = begin, end, value
@@ -35,11 +36,21 @@ class CircularRange:
 	def halfway(self):
 		return int((self.begin + self.end) / 2)
 
+class Node:
+	def __init__(self, point):
+		self.x, self.y = point
+		self.connections = []
+	
+	def __repr__(self):
+		return f"({self.y},{32-self.x})"
+	
+	def addConnection(self, to):
+		self.connections.append(to)
 
 class EdgesToGcode:
 	def __init__(self, edges):
 		self.edges = edges
-		self.seen = np.zeros(np.shape(edges), dtype=bool)
+		self.ownerNode = np.full(np.shape(edges), -1, dtype=int)
 		self.xSize, self.ySize = np.shape(edges)
 	
 	def getCircularArray(self, center, r, smallerArray = None):
@@ -65,7 +76,7 @@ class EdgesToGcode:
 					circularArray[i] = False # do not take into consideration not connected regions (roughly)
 				else:
 					circularArray[i] = self.edges[x, y]
-		
+
 		return circularArray
 
 	def toCircularRanges(self, circularArray):
@@ -110,34 +121,49 @@ class EdgesToGcode:
 				x = point[0] + constants.circumferences[bestRadius][circumferenceIndex][0]
 				y = point[1] + constants.circumferences[bestRadius][circumferenceIndex][1]
 
-				if x in range(self.xSize) and y in range(self.ySize) and not self.seen[x, y]:
+				if x in range(self.xSize) and y in range(self.ySize) and self.ownerNode[x, y] == -1:
 					points.append((x,y))
 		
 		return bestRadius, points
 					
 	def propagate(self, point):
-		print(point)
+		currentNodeIndex = len(self.graph)
+		self.graph.append(Node(point))
 		radius, nextPoints = self.getNextPoints(point)
 
-		# depth first search to mark all reachable and connected pixels as "seen"
+		# depth first search to set the owner of all reachable connected pixels
+		# without an owner and find connected nodes
+		allConnectedNodes = set()
 		def setSeenDFS(x, y):
 			if (x in range(self.xSize) and y in range(self.ySize)
 					and np.hypot(x-point[0], y-point[1]) <= radius + 0.5
-					and self.edges[x, y] == True and not self.seen[x, y]):
-				self.seen[x, y] = True
-				setSeenDFS(x+1, y)
-				setSeenDFS(x-1, y)
-				setSeenDFS(x, y+1)
-				setSeenDFS(x, y-1)
-		self.seen[point] = False
+					and self.edges[x, y] == True):
+				if self.ownerNode[x, y] == -1:
+					self.ownerNode[x, y] = currentNodeIndex # index of just added node
+					setSeenDFS(x+1, y)
+					setSeenDFS(x-1, y)
+					setSeenDFS(x, y+1)
+					setSeenDFS(x, y-1)
+				elif self.ownerNode[x, y] != currentNodeIndex:
+					allConnectedNodes.add(self.ownerNode[x, y])
+	
+		self.ownerNode[point] = -1 # reset to allow DFS to start
 		setSeenDFS(*point)
+		for nodeIndex in allConnectedNodes:
+			self.graph[currentNodeIndex].addConnection(nodeIndex)
 	
 		for nextPoint in nextPoints:
-			if self.seen[nextPoint]:
-				# only if this point became "seen" after the DFS, therefore it is connected
-				self.propagate(nextPoint)
+			if self.ownerNode[nextPoint] == currentNodeIndex:
+				# only if this point belongs to the current node after the DFS,
+				# which means it is reachable and connected
+				nodeIndex = self.propagate(nextPoint)
+				self.graph[currentNodeIndex].addConnection(nodeIndex)
+		
+		return currentNodeIndex
 
-			
+	def buildGraph(self):
+		self.graph = []
+
 
 
 def pokeballEdges():
@@ -150,10 +176,10 @@ def pokeballEdges():
 
 def testEdges():
 	image = imageio.imread("test_edges.png")
-	edges = np.zeros((np.shape(image)[1], np.shape(image)[0]), dtype=bool)
+	edges = np.zeros(np.shape(image)[0:2], dtype=bool)
 
-	for x, y in np.ndindex(np.shape(image)[0:2]):
-		edges[y][x] = (image[x][y][0] > 128 and image[x][y][1] > 128 and image[x][y][2] > 128)
+	for xy in np.ndindex(np.shape(image)[0:2]):
+		edges[xy] = (image[xy][0] > 128 and image[xy][1] > 128 and image[xy][2] > 128)
 	
 	return edges
 
@@ -169,13 +195,16 @@ def main():
 	circularArray = None
 	converter = EdgesToGcode(edges)
 	for i in range(11):
-		circularArray = converter.getCircularArray((14, 7), i, circularArray)
+		circularArray = converter.getCircularArray((22,17), i, circularArray)
 		#print(circularArray)
 		sections = converter.toCircularRanges(circularArray)
 		print(sections)
 	
-	print(converter.getNextPoints((14,7)))
-	converter.propagate((14,7))
+	print(converter.getNextPoints((22,17)))
+
+	converter.graph = []
+	converter.propagate((18,20))
+	print(converter.graph)
 
 	#print(", ".join([str(c)[1:-1] for c in constants.circumferences]))
 
