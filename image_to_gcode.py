@@ -32,7 +32,7 @@ class CircularRange:
 
 	def __repr__(self):
 		return f"[{self.begin},{self.end})->{self.value}"
-	
+
 	def halfway(self):
 		return int((self.begin + self.end) / 2)
 
@@ -40,10 +40,10 @@ class Node:
 	def __init__(self, point):
 		self.x, self.y = point
 		self.connections = []
-	
+
 	def __repr__(self):
 		return f"({self.y},{32-self.x})"
-	
+
 	def addConnection(self, to):
 		self.connections.append(to)
 
@@ -52,7 +52,7 @@ class EdgesToGcode:
 		self.edges = edges
 		self.ownerNode = np.full(np.shape(edges), -1, dtype=int)
 		self.xSize, self.ySize = np.shape(edges)
-	
+
 	def getCircularArray(self, center, r, smallerArray = None):
 		circumferenceSize = len(constants.circumferences[r])
 		circularArray = np.zeros(circumferenceSize, dtype=bool)
@@ -68,14 +68,17 @@ class EdgesToGcode:
 
 			if x not in range(self.xSize) or y not in range(self.ySize):
 				circularArray[i] = False # consider pixels outside of the image as not-edges
+				#print("a")
 			else:
 				iSmaller = i * smallerToCurrentRatio
 				a, b = int(np.floor(iSmaller)), int(np.ceil(iSmaller))
-				
+
 				if smallerArray[a] == False and (b not in range(smallerSize) or smallerArray[b] == False):
 					circularArray[i] = False # do not take into consideration not connected regions (roughly)
+					#print("b")
 				else:
 					circularArray[i] = self.edges[x, y]
+					#print("c", x, y, self.edges[x, y])
 
 		return circularArray
 
@@ -88,13 +91,13 @@ class EdgesToGcode:
 			if circularArray[i] != lastValue:
 				ranges.append(CircularRange(lastValueIndex, i, lastValue))
 				lastValue, lastValueIndex = circularArray[i], i
-		
+
 		ranges.append(CircularRange(lastValueIndex, circumferenceSize, lastValue))
 		if len(ranges) > 1 and ranges[-1].value == ranges[0].value:
 			ranges[0].begin = ranges[-1].begin - circumferenceSize
 			ranges.pop() # the last range is now contained in the first one
 		return ranges
-	
+
 	def getNextPoints(self, point):
 		"""
 		Returns the radius of the circle used to identify the points and
@@ -109,10 +112,10 @@ class EdgesToGcode:
 			allRanges.append(self.toCircularRanges(circularArray))
 			if len(allRanges[radius]) > len(allRanges[bestRadius]):
 				bestRadius = radius
-			if len(allRanges[radius]) >= 4 and len(allRanges[-1]) == len(allRanges[-2]):
+			if len(allRanges[radius]) >= 2 and len(allRanges[-1]) == len(allRanges[-2]):
 				# two consecutive circular arrays with the same number>1 of ranges
 				break
-		
+
 		circularRanges = allRanges[bestRadius]
 		points = []
 		for circularRange in circularRanges:
@@ -123,9 +126,9 @@ class EdgesToGcode:
 
 				if x in range(self.xSize) and y in range(self.ySize) and self.ownerNode[x, y] == -1:
 					points.append((x,y))
-		
+
 		return bestRadius, points
-					
+
 	def propagate(self, point):
 		currentNodeIndex = len(self.graph)
 		self.graph.append(Node(point))
@@ -137,32 +140,43 @@ class EdgesToGcode:
 		def setSeenDFS(x, y):
 			if (x in range(self.xSize) and y in range(self.ySize)
 					and np.hypot(x-point[0], y-point[1]) <= radius + 0.5
-					and self.edges[x, y] == True):
-				if self.ownerNode[x, y] == -1:
-					self.ownerNode[x, y] = currentNodeIndex # index of just added node
-					setSeenDFS(x+1, y)
-					setSeenDFS(x-1, y)
-					setSeenDFS(x, y+1)
-					setSeenDFS(x, y-1)
-				elif self.ownerNode[x, y] != currentNodeIndex:
+					and self.edges[x, y] == True and self.ownerNode[x, y] != currentNodeIndex):
+				if self.ownerNode[x, y] != -1:
 					allConnectedNodes.add(self.ownerNode[x, y])
-	
+				self.ownerNode[x, y] = currentNodeIndex # index of just added node
+				setSeenDFS(x+1, y)
+				setSeenDFS(x-1, y)
+				setSeenDFS(x, y+1)
+				setSeenDFS(x, y-1)
+
 		self.ownerNode[point] = -1 # reset to allow DFS to start
 		setSeenDFS(*point)
 		for nodeIndex in allConnectedNodes:
 			self.graph[currentNodeIndex].addConnection(nodeIndex)
-	
+
 		for nextPoint in nextPoints:
 			if self.ownerNode[nextPoint] == currentNodeIndex:
 				# only if this point belongs to the current node after the DFS,
 				# which means it is reachable and connected
 				nodeIndex = self.propagate(nextPoint)
 				self.graph[currentNodeIndex].addConnection(nodeIndex)
-		
+
 		return currentNodeIndex
 
 	def buildGraph(self):
 		self.graph = []
+
+		for point in np.ndindex(np.shape(self.edges)):
+			if self.edges[point] == True and self.ownerNode[point] == -1:
+				radius, nextPoints = self.getNextPoints(point)
+				if radius == 0:
+					self.propagate(point)
+				else:
+					for nextPoint in nextPoints:
+						if self.ownerNode[nextPoint] == -1:
+							self.propagate(nextPoint)
+		
+		return self.graph
 
 
 
@@ -180,7 +194,7 @@ def testEdges():
 
 	for xy in np.ndindex(np.shape(image)[0:2]):
 		edges[xy] = (image[xy][0] > 128 and image[xy][1] > 128 and image[xy][2] > 128)
-	
+
 	return edges
 
 def main():
@@ -195,18 +209,15 @@ def main():
 	circularArray = None
 	converter = EdgesToGcode(edges)
 	for i in range(11):
-		circularArray = converter.getCircularArray((22,17), i, circularArray)
+		circularArray = converter.getCircularArray((36,36), i, circularArray)
 		#print(circularArray)
 		sections = converter.toCircularRanges(circularArray)
 		print(sections)
-	
-	print(converter.getNextPoints((22,17)))
+	print(converter.getNextPoints((36,36)))
 
 	converter.graph = []
-	converter.propagate((18,20))
+	converter.buildGraph()
 	print(converter.graph)
-
-	#print(", ".join([str(c)[1:-1] for c in constants.circumferences]))
 
 if __name__ == "__main__":
 	main()
