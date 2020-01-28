@@ -103,7 +103,7 @@ class EdgesToGcode:
 			ranges.pop() # the last range is now contained in the first one
 		return ranges
 
-	def getNextPoints(self, point):
+	def getNextPoints(self, point, minNrRanges):
 		"""
 		Returns the radius of the circle used to identify the points and
 		the points toward which propagate, in a tuple `(radius, [point0, point1, ...])`
@@ -117,7 +117,7 @@ class EdgesToGcode:
 			allRanges.append(self.toCircularRanges(circularArray))
 			if len(allRanges[radius]) > len(allRanges[bestRadius]):
 				bestRadius = radius
-			if len(allRanges[radius]) >= 2 and len(allRanges[-1]) == len(allRanges[-2]):
+			if len(allRanges[radius]) >= minNrRanges and len(allRanges[-1]) == len(allRanges[-2]):
 				# two consecutive circular arrays with the same number>1 of ranges
 				break
 
@@ -140,7 +140,7 @@ class EdgesToGcode:
 	def propagate(self, point):
 		currentNodeIndex = len(self.graph)
 		self.graph.append(Node(point, currentNodeIndex))
-		radius, nextPoints = self.getNextPoints(point)
+		radius, nextPoints = self.getNextPoints(point, 2)
 
 		# depth first search to set the owner of all reachable connected pixels
 		# without an owner and find connected nodes
@@ -176,7 +176,7 @@ class EdgesToGcode:
 
 		for point in np.ndindex(np.shape(self.edges)):
 			if self.edges[point] == True and self.ownerNode[point] == -1:
-				radius, nextPoints = self.getNextPoints(point)
+				radius, nextPoints = self.getNextPoints(point, 4)
 				if radius == 0:
 					self.propagate(point)
 				else:
