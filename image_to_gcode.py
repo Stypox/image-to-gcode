@@ -109,7 +109,7 @@ class EdgesToGcode:
 			allRanges.append(self.toCircularRanges(circularArray))
 			if len(allRanges[radius]) > len(allRanges[bestRadius]):
 				bestRadius = radius
-			if len(allRanges[radius]) > 1 and len(allRanges[-1]) == len(allRanges[-2]):
+			if len(allRanges[radius]) >= 4 and len(allRanges[-1]) == len(allRanges[-2]):
 				# two consecutive circular arrays with the same number>1 of ranges
 				break
 		
