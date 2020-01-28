@@ -121,6 +121,9 @@ class EdgesToGcode:
 				# two consecutive circular arrays with the same number>1 of ranges
 				break
 
+		if bestRadius == 0:
+			return 0, []
+
 		circularRanges = allRanges[bestRadius]
 		points = []
 		for circularRange in circularRanges:
