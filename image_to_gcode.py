@@ -46,7 +46,7 @@ class Node:
 		return f"({self.y},{-self.x})"
 	
 	def toDotFormat(self):
-		return (f"{self.index} [pos=\"{self.y},{-self.x}!\"]\n" +
+		return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"({self.x},{self.y})\"]\n" +
 			"".join(f"{self.index}->{conn}\n" for conn in self.connections))
 
 	def addConnection(self, to):
@@ -120,16 +120,16 @@ class EdgesToGcode:
 			if len(allRanges[radius]) >= 4 and len(allRanges[-1]) == len(allRanges[-2]):
 				# two consecutive circular arrays with the same number>1 of ranges
 				break
-			elif len(allRanges[radius]) == 2:
+			elif len(allRanges[radius]) == 2 and radius > 1:
 				edge = 0 if allRanges[radius][0].value == True else 1
 				if allRanges[radius][edge].end-allRanges[radius][edge].begin < len(constants.circumferences[radius]) / 4:
 					# only two ranges but the edge range is small (1/4 of the circumference)
+					if bestRadius == 1:
+						bestRadius = 2
 					break
-			elif len(allRanges[radius]) == 1:
-				if allRanges[radius][0].value == False:
-					# this is a point-shaped edge not sorrounded by any edges
-					break
-
+			elif len(allRanges[radius]) == 1 and allRanges[radius][0].value == False:
+				# this is a point-shaped edge not sorrounded by any edges
+				break
 
 		if bestRadius == 0:
 			return 0, []
@@ -151,6 +151,7 @@ class EdgesToGcode:
 		currentNodeIndex = len(self.graph)
 		self.graph.append(Node(point, currentNodeIndex))
 		radius, nextPoints = self.getNextPoints(point)
+		print(radius,nextPoints)
 
 		# depth first search to set the owner of all reachable connected pixels
 		# without an owner and find connected nodes
@@ -223,7 +224,7 @@ def testEdges():
 	return edges
 
 def main():
-	edges = pokeballEdges()
+	edges = testEdges()
 
 	if np.shape(edges)[0] < 50 and np.shape(edges)[1] < 50:
 		print("-----------------")
@@ -242,7 +243,9 @@ def main():
 	print(converter.getNextPoints((36,36)))
 
 	converter.graph = []
-	converter.buildGraph()
+	converter.propagate((0, 22))
+
+	#converter.buildGraph()
 	print(converter.graph)
 	converter.saveGraphToDotFile("graph.dot")
 
