@@ -151,7 +151,6 @@ class EdgesToGcode:
 		currentNodeIndex = len(self.graph)
 		self.graph.append(Node(point, currentNodeIndex))
 		radius, nextPoints = self.getNextPoints(point)
-		print(radius,nextPoints)
 
 		# depth first search to set the owner of all reachable connected pixels
 		# without an owner and find connected nodes
@@ -242,10 +241,10 @@ def main():
 		print(sections)
 	print(converter.getNextPoints((36,36)))
 
-	converter.graph = []
-	converter.propagate((0, 22))
+	#converter.graph = []
+	#converter.propagate((0, 22))
 
-	#converter.buildGraph()
+	converter.buildGraph()
 	print(converter.graph)
 	converter.saveGraphToDotFile("graph.dot")
 
