@@ -44,9 +44,9 @@ class Node:
 
 	def __repr__(self):
 		return f"({self.y},{-self.x})"
-	
+
 	def toDotFormat(self):
-		return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"({self.x},{self.y})\"]\n" +
+		return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"{self.x}\\n{self.y}\"]\n" +
 			"".join(f"{self.index}->{conn}\n" for conn in self.connections))
 
 	def addConnection(self, to):
@@ -193,9 +193,9 @@ class EdgesToGcode:
 					for nextPoint in nextPoints:
 						if self.ownerNode[nextPoint] == -1:
 							self.propagate(nextPoint)
-		
+
 		return self.graph
-	
+
 	def saveGraphToDotFile(self, filename):
 		with open(filename, "w") as f:
 			f.write("digraph G {\nnode [shape=plaintext];\n")
