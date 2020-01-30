@@ -47,7 +47,7 @@ class Node:
 	
 	def toDotFormat(self):
 		return (f"{self.index} [pos=\"{self.y},{-self.x}!\"]\n" +
-			"".join(f"{self.index}--{conn}\n" for conn in self.connections if conn >= self.index))
+			"".join(f"{self.index}->{conn}\n" for conn in self.connections))
 
 	def addConnection(self, to):
 		self.connections.append(to)
@@ -188,7 +188,7 @@ class EdgesToGcode:
 	
 	def saveGraphToDotFile(self, filename):
 		with open(filename, "w") as f:
-			f.write("graph G {\nnode [shape=plaintext];\n")
+			f.write("digraph G {\nnode [shape=plaintext];\n")
 			for node in self.graph:
 				f.write(node.toDotFormat())
 			f.write("}\n")
@@ -213,7 +213,7 @@ def testEdges():
 	return edges
 
 def main():
-	edges = testEdges()
+	edges = pokeballEdges()
 
 	if np.shape(edges)[0] < 50 and np.shape(edges)[1] < 50:
 		print("-----------------")
