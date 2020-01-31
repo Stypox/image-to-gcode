@@ -73,17 +73,14 @@ class EdgesToGcode:
 
 			if x not in range(self.xSize) or y not in range(self.ySize):
 				circularArray[i] = False # consider pixels outside of the image as not-edges
-				#print("a")
 			else:
 				iSmaller = i * smallerToCurrentRatio
 				a, b = int(np.floor(iSmaller)), int(np.ceil(iSmaller))
 
 				if smallerArray[a] == False and (b not in range(smallerSize) or smallerArray[b] == False):
 					circularArray[i] = False # do not take into consideration not connected regions (roughly)
-					#print("b")
 				else:
 					circularArray[i] = self.edges[x, y]
-					#print("c", x, y, self.edges[x, y])
 
 		return circularArray
 
@@ -117,8 +114,8 @@ class EdgesToGcode:
 			allRanges.append(self.toCircularRanges(circularArray))
 			if len(allRanges[radius]) > len(allRanges[bestRadius]):
 				bestRadius = radius
-			if len(allRanges[radius]) >= 4 and len(allRanges[-1]) == len(allRanges[-2]):
-				# two consecutive circular arrays with the same number>1 of ranges
+			if len(allRanges[bestRadius]) >= 4 and len(allRanges[-2]) >= len(allRanges[-1]):
+				# two consecutive circular arrays with the same or decreasing number>=4 of ranges
 				break
 			elif len(allRanges[radius]) == 2 and radius > 1:
 				edge = 0 if allRanges[radius][0].value == True else 1
@@ -170,14 +167,20 @@ class EdgesToGcode:
 		self.ownerNode[point] = -1 # reset to allow DFS to start
 		setSeenDFS(*point)
 		for nodeIndex in allConnectedNodes:
+			if point == (25, 28): print(nodeIndex)
 			self.graph[currentNodeIndex].addConnection(nodeIndex)
 
+		validNextPoints = []
 		for nextPoint in nextPoints:
 			if self.ownerNode[nextPoint] == currentNodeIndex:
 				# only if this point belongs to the current node after the DFS,
 				# which means it is reachable and connected
-				nodeIndex = self.propagate(nextPoint)
-				self.graph[currentNodeIndex].addConnection(nodeIndex)
+				validNextPoints.append(nextPoint)
+
+		for nextPoint in validNextPoints:
+			nodeIndex = self.propagate(nextPoint)
+			self.graph[currentNodeIndex].addConnection(nodeIndex)
+			self.ownerNode[point] = currentNodeIndex
 
 		return currentNodeIndex
 
@@ -235,16 +238,16 @@ def main():
 	circularArray = None
 	converter = EdgesToGcode(edges)
 	for i in range(11):
-		circularArray = converter.getCircularArray((36,36), i, circularArray)
+		circularArray = converter.getCircularArray((25,28), i, circularArray)
 		#print(circularArray)
 		sections = converter.toCircularRanges(circularArray)
 		print(sections)
-	print(converter.getNextPoints((36,36)))
+	print(converter.getNextPoints((25,28)))
 
-	#converter.graph = []
-	#converter.propagate((0, 22))
+	converter.graph = []
+	converter.propagate((25, 28))
 
-	converter.buildGraph()
+	#converter.buildGraph()
 	print(converter.graph)
 	converter.saveGraphToDotFile("graph.dot")
 
