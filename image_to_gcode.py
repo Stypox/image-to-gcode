@@ -41,7 +41,7 @@ class Node:
 
 	def toDotFormat(self):
 		return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"{self.x}\\n{self.y}\"]\n" +
-			"".join(f"{self.index}->{conn}\n" for conn in self.connections))
+			"".join(f"{self.index}--{conn}\n" for conn in self.connections))
 
 	def addConnection(self, to):
 		self.connections.append(to)
@@ -194,7 +194,7 @@ class EdgesToGcode:
 
 	def saveGraphToDotFile(self, filename):
 		with open(filename, "w") as f:
-			f.write("digraph G {\nnode [shape=plaintext];\n")
+			f.write("graph G {\nnode [shape=plaintext];\n")
 			for node in self.graph:
 				f.write(node.toDotFormat())
 			f.write("}\n")
