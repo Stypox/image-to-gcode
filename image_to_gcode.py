@@ -8,11 +8,6 @@ from PIL import Image, ImageFilter
 import constants
 
 
-def enhance(image):
-	pil_image = Image.fromarray(image.astype("uint8"), "RGBA")
-	sharpened = pil_image.filter(ImageFilter.SHARPEN)
-	return np.asarray(sharpened)
-
 def sobel(image, threshold):
 	Gx = ndimage.sobel(image, axis=0)
 	Gy = ndimage.sobel(image, axis=1)
@@ -20,7 +15,6 @@ def sobel(image, threshold):
 
 	shape = np.shape(G)
 	result = np.zeros(shape[0:2], dtype=bool)
-	print(np.shape(result))
 
 	result[(G[:, :, 0] + G[:, :, 1] + G[:, :, 2] + G[:, :, 3]) >= threshold] = True
 	return result
@@ -167,7 +161,6 @@ class EdgesToGcode:
 		self.ownerNode[point] = -1 # reset to allow DFS to start
 		setSeenDFS(*point)
 		for nodeIndex in allConnectedNodes:
-			if point == (25, 28): print(nodeIndex)
 			self.graph[currentNodeIndex].addConnection(nodeIndex)
 
 		validNextPoints = []
@@ -238,16 +231,16 @@ def main():
 	circularArray = None
 	converter = EdgesToGcode(edges)
 	for i in range(11):
-		circularArray = converter.getCircularArray((25,28), i, circularArray)
+		circularArray = converter.getCircularArray((26,28), i, circularArray)
 		#print(circularArray)
 		sections = converter.toCircularRanges(circularArray)
 		print(sections)
-	print(converter.getNextPoints((25,28)))
+	print(converter.getNextPoints((26,28)))
 
-	converter.graph = []
-	converter.propagate((25, 28))
+	#converter.graph = []
+	#converter.propagate((26, 28))
 
-	#converter.buildGraph()
+	converter.buildGraph()
 	print(converter.graph)
 	converter.saveGraphToDotFile("graph.dot")
 
