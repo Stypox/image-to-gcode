@@ -40,12 +40,13 @@ class Graph:
 		def __repr__(self):
 			return f"({self.y},{-self.x})"
 
+		def _addConnection(self, to):
+			self.connections.add(to)
+
 		def toDotFormat(self):
 			return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"{self.index}\\n{self.x},{self.y}\"]\n" +
 				"".join(f"{self.index}--{conn}\n" for conn in self.connections if self.index < conn))
 
-		def _addConnection(self, to):
-			self.connections.add(to)
 
 	def __init__(self):
 		self.nodes = []
@@ -80,6 +81,12 @@ class Graph:
 					return True
 			return False
 
+	def saveToDotFile(self, filename):
+		with open(filename, "w") as f:
+			f.write("graph G {\nnode [shape=plaintext];\n")
+			for node in self.nodes:
+				f.write(node.toDotFormat())
+			f.write("}\n")
 
 
 class EdgesToGcode:
@@ -229,14 +236,6 @@ class EdgesToGcode:
 
 		return self.graph
 
-	def saveGraphToDotFile(self, filename):
-		with open(filename, "w") as f:
-			f.write("graph G {\nnode [shape=plaintext];\n")
-			for node in self.graph:
-				f.write(node.toDotFormat())
-			f.write("}\n")
-
-
 
 def pokeballEdges():
 	image = imageio.imread("pokeball_small.png")
@@ -279,7 +278,7 @@ def main():
 
 	converter.buildGraph()
 	print(converter.graph)
-	converter.saveGraphToDotFile("graph.dot")
+	converter.graph.saveToDotFile("graph.dot")
 
 if __name__ == "__main__":
 	main()
