@@ -30,27 +30,64 @@ class CircularRange:
 	def halfway(self):
 		return int((self.begin + self.end) / 2)
 
-class Node:
-	def __init__(self, point, index):
-		self.x, self.y = point
-		self.index = index
-		self.connections = []
+class Graph:
+	class Node:
+		def __init__(self, point, index):
+			self.x, self.y = point
+			self.index = index
+			self.connections = set()
+
+		def __repr__(self):
+			return f"({self.y},{-self.x})"
+
+		def toDotFormat(self):
+			return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"{self.index}\\n{self.x},{self.y}\"]\n" +
+				"".join(f"{self.index}--{conn}\n" for conn in self.connections if self.index < conn))
+
+		def _addConnection(self, to):
+			self.connections.add(to)
+
+	def __init__(self):
+		self.nodes = []
+
+	def __getitem__(self, index):
+		return self.nodes[index]
 
 	def __repr__(self):
-		return f"({self.y},{-self.x})"
+		return repr(self.nodes)
 
-	def toDotFormat(self):
-		return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"{self.index}\\n{self.x},{self.y}\"]\n" +
-			"".join(f"{self.index}->{conn}\n" for conn in self.connections))
 
-	def addConnection(self, to):
-		self.connections.append(to)
+	def addNode(self, point):
+		index = len(self.nodes)
+		self.nodes.append(Graph.Node(point, index))
+		return index
+
+	def addConnection(self, a, b):
+		self.nodes[a]._addConnection(b)
+		self.nodes[b]._addConnection(a)
+
+	def distance(self, a, b):
+		return np.hypot(self[a].x-self[b].x, self[a].y-self[b].y)
+
+	def areConnectedWithin(self, a, b, maxDistance):
+		if maxDistance < 0:
+			return False
+		elif a == b:
+			return True
+		else:
+			for conn in self[a].connections:
+				if self.areConnectedWithin(conn, b, maxDistance - self.distance(conn, b)):
+					return True
+			return False
+
+
 
 class EdgesToGcode:
 	def __init__(self, edges):
 		self.edges = edges
 		self.ownerNode = np.full(np.shape(edges), -1, dtype=int)
 		self.xSize, self.ySize = np.shape(edges)
+		self.graph = Graph()
 
 	def getCircularArray(self, center, r, smallerArray = None):
 		circumferenceSize = len(constants.circumferences[r])
@@ -138,21 +175,7 @@ class EdgesToGcode:
 
 		return bestRadius, points
 
-	def reachable(self, nodeA, nodeB, maxDistance):
-		if maxDistance < 0:
-			return False
-		elif nodeA == nodeB:
-			return True
-		else:
-			for conn in self.graph[nodeA].connections:
-				if self.reachable(conn, nodeB,
-						maxDistance - np.hypot(self.graph[nodeA].x-self.graph[conn].x, self.graph[nodeA].y-self.graph[conn].y)):
-					return True
-			return False
-
-	def propagate(self, point):
-		currentNodeIndex = len(self.graph)
-		self.graph.append(Node(point, currentNodeIndex))
+	def propagate(self, point, currentNodeIndex):
 		radius, nextPoints = self.getNextPoints(point)
 
 		# depth first search to set the owner of all reachable connected pixels
@@ -172,12 +195,9 @@ class EdgesToGcode:
 
 		self.ownerNode[point] = -1 # reset to allow DFS to start
 		setSeenDFS(*point)
-		print(point)
 		for nodeIndex in allConnectedNodes:
-			if (not self.reachable(currentNodeIndex, nodeIndex, 11)
-				and not self.reachable(nodeIndex, currentNodeIndex, 11)):
-				print(currentNodeIndex, "can not reach", nodeIndex)
-				self.graph[currentNodeIndex].addConnection(nodeIndex)
+			if not self.graph.areConnectedWithin(currentNodeIndex, nodeIndex, 11):
+				self.graph.addConnection(currentNodeIndex, nodeIndex)
 
 		validNextPoints = []
 		for nextPoint in nextPoints:
@@ -187,30 +207,31 @@ class EdgesToGcode:
 				validNextPoints.append(nextPoint)
 
 		for nextPoint in validNextPoints:
-			nodeIndex = self.propagate(nextPoint)
-			self.graph[currentNodeIndex].addConnection(nodeIndex)
+			nodeIndex = self.graph.addNode(nextPoint)
+			self.graph.addConnection(currentNodeIndex, nodeIndex)
+			self.propagate(nextPoint, nodeIndex)
 			self.ownerNode[point] = currentNodeIndex
 
-		return currentNodeIndex
+	def addNodeAndPropagate(self, point):
+		nodeIndex = self.graph.addNode(point)
+		self.propagate(point, nodeIndex)
 
 	def buildGraph(self):
-		self.graph = []
-
 		for point in np.ndindex(np.shape(self.edges)):
 			if self.edges[point] == True and self.ownerNode[point] == -1:
 				radius, nextPoints = self.getNextPoints(point)
 				if radius == 0:
-					self.propagate(point)
+					self.addNodeAndPropagate(point)
 				else:
 					for nextPoint in nextPoints:
 						if self.ownerNode[nextPoint] == -1:
-							self.propagate(nextPoint)
+							self.addNodeAndPropagate(nextPoint)
 
 		return self.graph
 
 	def saveGraphToDotFile(self, filename):
 		with open(filename, "w") as f:
-			f.write("digraph G {\nnode [shape=plaintext];\n")
+			f.write("graph G {\nnode [shape=plaintext];\n")
 			for node in self.graph:
 				f.write(node.toDotFormat())
 			f.write("}\n")
@@ -235,7 +256,7 @@ def testEdges():
 	return edges
 
 def main():
-	edges = testEdges()
+	edges = pokeballEdges()
 
 	if np.shape(edges)[0] < 50 and np.shape(edges)[1] < 50:
 		print("-----------------")
