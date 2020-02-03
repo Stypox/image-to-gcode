@@ -81,12 +81,31 @@ class Graph:
 					return True
 			return False
 
-	def saveToDotFile(self, filename):
+	def saveAsDotFile(self, filename):
 		with open(filename, "w") as f:
 			f.write("graph G {\nnode [shape=plaintext];\n")
 			for node in self.nodes:
 				f.write(node.toDotFormat())
 			f.write("}\n")
+
+	def saveAsGcodeFile(self, filename):
+		with open(filename, "w") as f:
+
+			def dfsGcode(i, insidePath):
+				for connTo, alreadyUsed in self[i].connections.items():
+					if not alreadyUsed:
+						f.write(f"G{1 if insidePath else 0} X{self[i].x} Y{self[i].y}\n")
+						self[i].connections[connTo] = True
+						self[connTo].connections[i] = True
+
+						dfsGcode(connTo, True)
+						insidePath = False
+
+			for i in range(len(self.nodes)):
+				if len(self[i].connections) == 0:
+					f.write(f"G0 X{self[i].x} Y{self[i].y}\nG1 X{self[i].x} Y{self[i].y}\n")
+				else:
+					dfsGcode(i, False)
 
 
 class EdgesToGcode:
@@ -278,7 +297,8 @@ def main():
 
 	converter.buildGraph()
 	print(converter.graph)
-	converter.graph.saveToDotFile("graph.dot")
+	converter.graph.saveAsDotFile("graph.dot")
+	converter.graph.saveAsGcodeFile("graph.nc")
 
 if __name__ == "__main__":
 	main()
