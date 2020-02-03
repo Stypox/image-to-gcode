@@ -107,7 +107,7 @@ class Graph:
 			for i in range(len(self.nodes)):
 				if len(self[i].connections) == 0:
 					f.write(f"G0 X{self[i].y} Y{-self[i].x}\nG1 X{self[i].y} Y{-self[i].x}\n")
-				else:
+				elif len(self[i].connections) == 1:
 					dfsGcode(i, False)
 
 
