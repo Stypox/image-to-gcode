@@ -35,13 +35,13 @@ class Graph:
 		def __init__(self, point, index):
 			self.x, self.y = point
 			self.index = index
-			self.connections = set()
+			self.connections = {}
 
 		def __repr__(self):
 			return f"({self.y},{-self.x})"
 
 		def _addConnection(self, to):
-			self.connections.add(to)
+			self.connections[to] = False # i.e. not already used in gcode generation
 
 		def toDotFormat(self):
 			return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"{self.index}\\n{self.x},{self.y}\"]\n" +
