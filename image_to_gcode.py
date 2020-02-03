@@ -40,8 +40,8 @@ class Node:
 		return f"({self.y},{-self.x})"
 
 	def toDotFormat(self):
-		return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"{self.x}\\n{self.y}\"]\n" +
-			"".join(f"{self.index}--{conn}\n" for conn in self.connections))
+		return (f"{self.index} [pos=\"{self.y},{-self.x}!\", label=\"{self.index}\\n{self.x},{self.y}\"]\n" +
+			"".join(f"{self.index}->{conn}\n" for conn in self.connections))
 
 	def addConnection(self, to):
 		self.connections.append(to)
@@ -138,6 +138,18 @@ class EdgesToGcode:
 
 		return bestRadius, points
 
+	def reachable(self, nodeA, nodeB, maxDistance):
+		if maxDistance < 0:
+			return False
+		elif nodeA == nodeB:
+			return True
+		else:
+			for conn in self.graph[nodeA].connections:
+				if self.reachable(conn, nodeB,
+						maxDistance - np.hypot(self.graph[nodeA].x-self.graph[conn].x, self.graph[nodeA].y-self.graph[conn].y)):
+					return True
+			return False
+
 	def propagate(self, point):
 		currentNodeIndex = len(self.graph)
 		self.graph.append(Node(point, currentNodeIndex))
@@ -160,8 +172,12 @@ class EdgesToGcode:
 
 		self.ownerNode[point] = -1 # reset to allow DFS to start
 		setSeenDFS(*point)
+		print(point)
 		for nodeIndex in allConnectedNodes:
-			self.graph[currentNodeIndex].addConnection(nodeIndex)
+			if (not self.reachable(currentNodeIndex, nodeIndex, 11)
+				and not self.reachable(nodeIndex, currentNodeIndex, 11)):
+				print(currentNodeIndex, "can not reach", nodeIndex)
+				self.graph[currentNodeIndex].addConnection(nodeIndex)
 
 		validNextPoints = []
 		for nextPoint in nextPoints:
@@ -194,7 +210,7 @@ class EdgesToGcode:
 
 	def saveGraphToDotFile(self, filename):
 		with open(filename, "w") as f:
-			f.write("graph G {\nnode [shape=plaintext];\n")
+			f.write("digraph G {\nnode [shape=plaintext];\n")
 			for node in self.graph:
 				f.write(node.toDotFormat())
 			f.write("}\n")
