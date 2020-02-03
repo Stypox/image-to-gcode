@@ -94,16 +94,19 @@ class Graph:
 			def dfsGcode(i, insidePath):
 				for connTo, alreadyUsed in self[i].connections.items():
 					if not alreadyUsed:
-						f.write(f"G{1 if insidePath else 0} X{self[i].x} Y{self[i].y}\n")
+						f.write(f"G{1 if insidePath else 0} X{self[i].y} Y{-self[i].x}\n")
 						self[i].connections[connTo] = True
 						self[connTo].connections[i] = True
 
 						dfsGcode(connTo, True)
 						insidePath = False
 
+				if insidePath: # still inside path, i.e. no valid connections found
+					f.write(f"G1 X{self[i].y} Y{-self[i].x}\n")
+
 			for i in range(len(self.nodes)):
 				if len(self[i].connections) == 0:
-					f.write(f"G0 X{self[i].x} Y{self[i].y}\nG1 X{self[i].x} Y{self[i].y}\n")
+					f.write(f"G0 X{self[i].y} Y{-self[i].x}\nG1 X{self[i].y} Y{-self[i].x}\n")
 				else:
 					dfsGcode(i, False)
 
@@ -274,7 +277,7 @@ def testEdges():
 	return edges
 
 def main():
-	edges = pokeballEdges()
+	edges = testEdges()
 
 	if np.shape(edges)[0] < 50 and np.shape(edges)[1] < 50:
 		print("-----------------")
