@@ -286,19 +286,9 @@ def main():
 			print("cɔ" if edges[x,y] else "  ", end="")
 		print("\n-----------------")
 
-	circularArray = None
 	converter = EdgesToGcode(edges)
-	for i in range(11):
-		circularArray = converter.getCircularArray((26,28), i, circularArray)
-		#print(circularArray)
-		sections = converter.toCircularRanges(circularArray)
-		print(sections)
-	print(converter.getNextPoints((26,28)))
-
-	#converter.graph = []
-	#converter.propagate((26, 28))
-
 	converter.buildGraph()
+
 	print(converter.graph)
 	converter.graph.saveAsDotFile("graph.dot")
 	converter.graph.saveAsGcodeFile("graph.nc")
