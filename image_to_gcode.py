@@ -91,24 +91,45 @@ class Graph:
 	def saveAsGcodeFile(self, filename):
 		with open(filename, "w") as f:
 
-			def dfsGcode(i, insidePath):
+			def pathGcode(i, insidePath):
+				f.write(f"G{1 if insidePath else 0} X{self[i].y} Y{-self[i].x}\n")
 				for connTo, alreadyUsed in self[i].connections.items():
 					if not alreadyUsed:
-						f.write(f"G{1 if insidePath else 0} X{self[i].y} Y{-self[i].x}\n")
 						self[i].connections[connTo] = True
 						self[connTo].connections[i] = True
 
-						dfsGcode(connTo, True)
-						insidePath = False
+						return pathGcode(connTo, True)
+				return i
 
-				if insidePath: # still inside path, i.e. no valid connections found
-					f.write(f"G1 X{self[i].y} Y{-self[i].x}\n")
 
+			# First follow all paths that have a starting point (i.e. are not cycles)
+			# The next chosen path starting point is the closest to the current position
+			possibleStartingNodes = set()
 			for i in range(len(self.nodes)):
-				if len(self[i].connections) == 0:
-					f.write(f"G0 X{self[i].y} Y{-self[i].x}\nG1 X{self[i].y} Y{-self[i].x}\n")
-				elif len(self[i].connections) == 1:
-					dfsGcode(i, False)
+				if len(self[i].connections) == 0 or len(self[i].connections) % 2 == 1:
+					possibleStartingNodes.add(i)
+
+			node = next(iter(possibleStartingNodes)) # first element
+			while 1:
+				possibleStartingNodes.remove(node)
+				pathEndNode = pathGcode(node, False)
+
+				if len(self[node].connections) == 0:
+					assert pathEndNode == node
+					f.write(f"G1 X{self[node].y} Y{-self[node].x}\n")
+				else:
+					possibleStartingNodes.remove(pathEndNode)
+
+				if len(possibleStartingNodes) == 0:
+					break
+
+				minDistanceSoFar = np.inf
+				for nextNode in possibleStartingNodes:
+					distance = self.distance(pathEndNode, nextNode)
+					if distance < minDistanceSoFar:
+						minDistanceSoFar = distance
+						node = nextNode
+
 
 
 class EdgesToGcode:
