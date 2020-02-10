@@ -91,6 +91,9 @@ class Graph:
 	def saveAsGcodeFile(self, filename):
 		with open(filename, "w") as f:
 
+			### First follow all paths that have a start/end node (i.e. are not cycles)
+			# The next chosen starting node is the closest to the current position
+
 			def pathGcode(i, insidePath):
 				f.write(f"G{1 if insidePath else 0} X{self[i].y} Y{-self[i].x}\n")
 				for connTo, alreadyUsed in self[i].connections.items():
@@ -101,36 +104,84 @@ class Graph:
 						return pathGcode(connTo, True)
 				return i
 
-
-			# First follow all paths that have a starting point (i.e. are not cycles)
-			# The next chosen path starting point is the closest to the current position
 			possibleStartingNodes = set()
 			for i in range(len(self.nodes)):
 				if len(self[i].connections) == 0 or len(self[i].connections) % 2 == 1:
 					possibleStartingNodes.add(i)
 
-			node = next(iter(possibleStartingNodes)) # first element
-			while 1:
-				possibleStartingNodes.remove(node)
-				pathEndNode = pathGcode(node, False)
+			if len(possibleStartingNodes) != 0:
+				node = next(iter(possibleStartingNodes)) # first element
+				while 1:
+					possibleStartingNodes.remove(node)
+					pathEndNode = pathGcode(node, False)
 
-				if len(self[node].connections) == 0:
-					assert pathEndNode == node
-					f.write(f"G1 X{self[node].y} Y{-self[node].x}\n")
-				else:
-					possibleStartingNodes.remove(pathEndNode)
+					if len(self[node].connections) == 0:
+						assert pathEndNode == node
+						f.write(f"G1 X{self[node].y} Y{-self[node].x}\n")
+					else:
+						possibleStartingNodes.remove(pathEndNode)
 
-				if len(possibleStartingNodes) == 0:
-					break
+					if len(possibleStartingNodes) == 0:
+						break
 
-				minDistanceSoFar = np.inf
-				for nextNode in possibleStartingNodes:
-					distance = self.distance(pathEndNode, nextNode)
-					if distance < minDistanceSoFar:
-						minDistanceSoFar = distance
-						node = nextNode
+					minDistanceSoFar = np.inf
+					for nextNode in possibleStartingNodes:
+						distance = self.distance(pathEndNode, nextNode)
+						if distance < minDistanceSoFar:
+							minDistanceSoFar = distance
+							node = nextNode
 
 
+			### Then pick the node closest to the current position that still has unused/available connections
+			# That node must belong to a cycle, because otherwise it would have been used above
+			# TODO improve by finding Eulerian cycles
+
+			cycleNodes = set()
+			for i in range(len(self.nodes)):
+				someConnectionsAvailable = False
+				for _, alreadyUsed in self[i].connections.items():
+					if not alreadyUsed:
+						someConnectionsAvailable = True
+						break
+
+				if someConnectionsAvailable:
+					cycleNodes.add(i)
+
+			def cyclePathGcode(i, insidePath):
+				f.write(f"G{1 if insidePath else 0} X{self[i].y} Y{-self[i].x}\n")
+
+				foundConnections = 0
+				for connTo, alreadyUsed in self[i].connections.items():
+					if not alreadyUsed:
+						if foundConnections == 0:
+							self[i].connections[connTo] = True
+							self[connTo].connections[i] = True
+							cyclePathGcode(connTo, True)
+
+						foundConnections += 1
+						if foundConnections > 1:
+							break
+
+				if foundConnections == 1:
+					cycleNodes.remove(i)
+
+			if len(cycleNodes) != 0:
+				node = next(iter(cycleNodes)) # first element
+				while 1:
+					# since every node has an even number of connections, ANY path starting from it
+					# must complete at the same place (see Eulerian paths/cycles properties)
+					cyclePathGcode(node, False)
+
+					if len(cycleNodes) == 0:
+						break
+
+					pathEndNode = node
+					minDistanceSoFar = np.inf
+					for nextNode in possibleStartingNodes:
+						distance = self.distance(pathEndNode, nextNode)
+						if distance < minDistanceSoFar:
+							minDistanceSoFar = distance
+							node = nextNode
 
 class EdgesToGcode:
 	def __init__(self, edges):
