@@ -6,18 +6,7 @@ from scipy import ndimage
 import imageio
 from PIL import Image, ImageFilter
 import constants
-
-
-def sobel(image, threshold):
-	Gx = ndimage.sobel(image, axis=0)
-	Gy = ndimage.sobel(image, axis=1)
-	G = np.hypot(Gx, Gy)
-
-	shape = np.shape(G)
-	result = np.zeros(shape[0:2], dtype=bool)
-
-	result[(G[:, :, 0] + G[:, :, 1] + G[:, :, 2] + G[:, :, 3]) >= threshold] = True
-	return result
+import argparse
 
 
 class CircularRange:
@@ -81,107 +70,104 @@ class Graph:
 					return True
 			return False
 
-	def saveAsDotFile(self, filename):
-		with open(filename, "w") as f:
-			f.write("graph G {\nnode [shape=plaintext];\n")
-			for node in self.nodes:
-				f.write(node.toDotFormat())
-			f.write("}\n")
+	def saveAsDotFile(self, f):
+		f.write("graph G {\nnode [shape=plaintext];\n")
+		for node in self.nodes:
+			f.write(node.toDotFormat())
+		f.write("}\n")
 
-	def saveAsGcodeFile(self, filename):
-		with open(filename, "w") as f:
+	def saveAsGcodeFile(self, f):
+		### First follow all paths that have a start/end node (i.e. are not cycles)
+		# The next chosen starting node is the closest to the current position
 
-			### First follow all paths that have a start/end node (i.e. are not cycles)
-			# The next chosen starting node is the closest to the current position
+		def pathGcode(i, insidePath):
+			f.write(f"G{1 if insidePath else 0} X{self[i].y} Y{-self[i].x}\n")
+			for connTo, alreadyUsed in self[i].connections.items():
+				if not alreadyUsed:
+					self[i].connections[connTo] = True
+					self[connTo].connections[i] = True
 
-			def pathGcode(i, insidePath):
-				f.write(f"G{1 if insidePath else 0} X{self[i].y} Y{-self[i].x}\n")
-				for connTo, alreadyUsed in self[i].connections.items():
-					if not alreadyUsed:
+					return pathGcode(connTo, True)
+			return i
+
+		possibleStartingNodes = set()
+		for i in range(len(self.nodes)):
+			if len(self[i].connections) == 0 or len(self[i].connections) % 2 == 1:
+				possibleStartingNodes.add(i)
+
+		if len(possibleStartingNodes) != 0:
+			node = next(iter(possibleStartingNodes)) # first element
+			while 1:
+				possibleStartingNodes.remove(node)
+				pathEndNode = pathGcode(node, False)
+
+				if len(self[node].connections) == 0:
+					assert pathEndNode == node
+					f.write(f"G1 X{self[node].y} Y{-self[node].x}\n")
+				else:
+					possibleStartingNodes.remove(pathEndNode)
+
+				if len(possibleStartingNodes) == 0:
+					break
+
+				minDistanceSoFar = np.inf
+				for nextNode in possibleStartingNodes:
+					distance = self.distance(pathEndNode, nextNode)
+					if distance < minDistanceSoFar:
+						minDistanceSoFar = distance
+						node = nextNode
+
+
+		### Then pick the node closest to the current position that still has unused/available connections
+		# That node must belong to a cycle, because otherwise it would have been used above
+		# TODO improve by finding Eulerian cycles
+
+		cycleNodes = set()
+		for i in range(len(self.nodes)):
+			someConnectionsAvailable = False
+			for _, alreadyUsed in self[i].connections.items():
+				if not alreadyUsed:
+					someConnectionsAvailable = True
+					break
+
+			if someConnectionsAvailable:
+				cycleNodes.add(i)
+
+		def cyclePathGcode(i, insidePath):
+			f.write(f"G{1 if insidePath else 0} X{self[i].y} Y{-self[i].x}\n")
+
+			foundConnections = 0
+			for connTo, alreadyUsed in self[i].connections.items():
+				if not alreadyUsed:
+					if foundConnections == 0:
 						self[i].connections[connTo] = True
 						self[connTo].connections[i] = True
+						cyclePathGcode(connTo, True)
 
-						return pathGcode(connTo, True)
-				return i
-
-			possibleStartingNodes = set()
-			for i in range(len(self.nodes)):
-				if len(self[i].connections) == 0 or len(self[i].connections) % 2 == 1:
-					possibleStartingNodes.add(i)
-
-			if len(possibleStartingNodes) != 0:
-				node = next(iter(possibleStartingNodes)) # first element
-				while 1:
-					possibleStartingNodes.remove(node)
-					pathEndNode = pathGcode(node, False)
-
-					if len(self[node].connections) == 0:
-						assert pathEndNode == node
-						f.write(f"G1 X{self[node].y} Y{-self[node].x}\n")
-					else:
-						possibleStartingNodes.remove(pathEndNode)
-
-					if len(possibleStartingNodes) == 0:
+					foundConnections += 1
+					if foundConnections > 1:
 						break
 
-					minDistanceSoFar = np.inf
-					for nextNode in possibleStartingNodes:
-						distance = self.distance(pathEndNode, nextNode)
-						if distance < minDistanceSoFar:
-							minDistanceSoFar = distance
-							node = nextNode
+			if foundConnections == 1:
+				cycleNodes.remove(i)
 
+		if len(cycleNodes) != 0:
+			node = next(iter(cycleNodes)) # first element
+			while 1:
+				# since every node has an even number of connections, ANY path starting from it
+				# must complete at the same place (see Eulerian paths/cycles properties)
+				cyclePathGcode(node, False)
 
-			### Then pick the node closest to the current position that still has unused/available connections
-			# That node must belong to a cycle, because otherwise it would have been used above
-			# TODO improve by finding Eulerian cycles
+				if len(cycleNodes) == 0:
+					break
 
-			cycleNodes = set()
-			for i in range(len(self.nodes)):
-				someConnectionsAvailable = False
-				for _, alreadyUsed in self[i].connections.items():
-					if not alreadyUsed:
-						someConnectionsAvailable = True
-						break
-
-				if someConnectionsAvailable:
-					cycleNodes.add(i)
-
-			def cyclePathGcode(i, insidePath):
-				f.write(f"G{1 if insidePath else 0} X{self[i].y} Y{-self[i].x}\n")
-
-				foundConnections = 0
-				for connTo, alreadyUsed in self[i].connections.items():
-					if not alreadyUsed:
-						if foundConnections == 0:
-							self[i].connections[connTo] = True
-							self[connTo].connections[i] = True
-							cyclePathGcode(connTo, True)
-
-						foundConnections += 1
-						if foundConnections > 1:
-							break
-
-				if foundConnections == 1:
-					cycleNodes.remove(i)
-
-			if len(cycleNodes) != 0:
-				node = next(iter(cycleNodes)) # first element
-				while 1:
-					# since every node has an even number of connections, ANY path starting from it
-					# must complete at the same place (see Eulerian paths/cycles properties)
-					cyclePathGcode(node, False)
-
-					if len(cycleNodes) == 0:
-						break
-
-					pathEndNode = node
-					minDistanceSoFar = np.inf
-					for nextNode in possibleStartingNodes:
-						distance = self.distance(pathEndNode, nextNode)
-						if distance < minDistanceSoFar:
-							minDistanceSoFar = distance
-							node = nextNode
+				pathEndNode = node
+				minDistanceSoFar = np.inf
+				for nextNode in possibleStartingNodes:
+					distance = self.distance(pathEndNode, nextNode)
+					if distance < minDistanceSoFar:
+						minDistanceSoFar = distance
+						node = nextNode
 
 class EdgesToGcode:
 	def __init__(self, edges):
@@ -331,39 +317,57 @@ class EdgesToGcode:
 		return self.graph
 
 
-def pokeballEdges():
-	image = imageio.imread("pokeball_small.png")
+def sobel(image):
+	Gx = ndimage.sobel(image, axis=0)
+	Gy = ndimage.sobel(image, axis=1)
+	return np.hypot(Gx, Gy)
 
-	edges = sobel(image, 128.0)
-	imageio.imwrite("pokeballsobel.png", edges.astype(float))
+def convertToBinaryEdges(edges, threshold):
+	result = np.ones(np.shape(edges)[0:2], dtype=bool)
+	result[(edges[:, :, 0] + edges[:, :, 1] + edges[:, :, 2]) < threshold] = False
+	result[edges[:, :, 3] < threshold] = False
+	return result
 
-	return edges
 
-def testEdges():
-	image = imageio.imread("test_edges.png")
-	edges = np.zeros(np.shape(image)[0:2], dtype=bool)
+def parseArgs(namespace):
+	argParser = argparse.ArgumentParser(fromfile_prefix_chars="@",
+		description="Detects the edges of an image and converts them to 2D gcode that can be printed by a plotter")
 
-	for xy in np.ndindex(np.shape(image)[0:2]):
-		edges[xy] = (image[xy][0] > 128 and image[xy][1] > 128 and image[xy][2] > 128)
+	argParser.add_argument_group("Data options")
+	argParser.add_argument("-i", "--input", type=argparse.FileType('br'), required=True, metavar="FILE",
+		help="Image to convert to gcode; all formats supported by the Python imageio library are supported")
+	argParser.add_argument("-o", "--output", type=argparse.FileType('w'), required=True, metavar="FILE",
+		help="File in which to save the gcode result")
+	argParser.add_argument("--dot-output", type=argparse.FileType('w'), metavar="FILE",
+		help="Optional file in which to save the graph (in DOT format) generated during an intermediary step of gcode generation")
+	argParser.add_argument("-e", "--edges", action="store_true",
+		help="Consider the input file already as an edges matrix, not as an image of which to detect the edges")
+	argParser.add_argument("-t", "--threshold", type=int, default=32, metavar="VALUE",
+		help="The threshold in range (0,255) above which to consider a pixel as part of an edge (after Sobel was applied to the image or on reading the edges from file with the --edges option)")
 
-	return edges
+	argParser.parse_args(namespace=namespace)
+
+
+	if namespace.threshold <= 0 or namespace.threshold >= 255:
+		argParser.error("value for --threshold should be in range (0,255)")
 
 def main():
-	edges = testEdges()
+	class Args: pass
+	parseArgs(Args)
 
-	if np.shape(edges)[0] < 50 and np.shape(edges)[1] < 50:
-		print("-----------------")
-		for x, y in np.ndindex(np.shape(edges)):
-			if y == 0 and x != 0: print()
-			print("cɔ" if edges[x,y] else "  ", end="")
-		print("\n-----------------")
+	image = imageio.imread(Args.input)
+	if Args.edges:
+		edges = image
+	else:
+		edges = sobel(image)
+	edges = convertToBinaryEdges(edges, Args.threshold)
 
 	converter = EdgesToGcode(edges)
 	converter.buildGraph()
 
-	print(converter.graph)
-	converter.graph.saveAsDotFile("graph.dot")
-	converter.graph.saveAsGcodeFile("graph.nc")
+	if Args.dot_output is not None:
+		converter.graph.saveAsDotFile(Args.dot_output)
+	converter.graph.saveAsGcodeFile(Args.output)
 
 if __name__ == "__main__":
 	main()
