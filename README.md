@@ -4,8 +4,8 @@ This repository contains a Python 3 script that takes an **image as input** and 
 
 <table>
 <tr>
-<td colspan=2>Auto detecting edges</td>
-<td colspan=2>Considering image as already edges</td>
+<th colspan=2>Auto-detecting edges</th>
+<th colspan=2>Considering image as already edges</th>
 </tr>
 <tr>
 <td><img width="300px" src="./images/tree.png"/></td>
@@ -14,7 +14,7 @@ This repository contains a Python 3 script that takes an **image as input** and 
 <td><img width="200px" src="./images/flower_gcode.png"/></td>
 </tr>
 <tr>
-<td colspan=4><sup>Obtained with <a href="http://jherrm.com/gcode-viewer/">http://jherrm.com/gcode-viewer/</a></sup></td>
+<td colspan=4 align="center">Obtained with <a href="http://jherrm.com/gcode-viewer/">http://jherrm.com/gcode-viewer/</a></td>
 </tr>
 </table>
 
