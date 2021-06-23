@@ -2,6 +2,22 @@
 
 This repository contains a Python 3 script that takes an **image as input** and generates a **2D G-code file as output**. The script can either use the provided image as an edges image, or auto-detect the edges using the Sobel operator. Then a graph is built and it is converted to G-code. You can then **use the produced G-code in a 2D plotter**, you may find this other project of mine useful: [plotter](https://github.com/Stypox/plotter).
 
+<table>
+<tr>
+<td colspan=2>Auto detecting edges</td>
+<td colspan=2>Considering image as already edges</td>
+</tr>
+<tr>
+<td><img width="300px" src="./images/tree.png"/></td>
+<td><img width="300px" src="./images/tree_gcode.png"/></td>
+<td><img width="200px" src="./images/flower.jpg"/></td>
+<td><img width="200px" src="./images/flower_gcode.png"/></td>
+</tr>
+<tr>
+<td colspan=4><sup>Obtained with <a href="http://jherrm.com/gcode-viewer/">http://jherrm.com/gcode-viewer/</a></sup></td>
+</tr>
+</table>
+
 ## Usage
 
 You can run the script normally with [Python 3](https://www.python.org/downloads/):
