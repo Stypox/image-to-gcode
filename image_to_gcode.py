@@ -325,7 +325,8 @@ def sobel(image):
 def convertToBinaryEdges(edges, threshold):
 	result = np.ones(np.shape(edges)[0:2], dtype=bool)
 	result[(edges[:, :, 0] + edges[:, :, 1] + edges[:, :, 2]) < threshold] = False
-	result[edges[:, :, 3] < threshold] = False
+	if np.shape(edges)[2] > 3:
+		result[edges[:, :, 3] < threshold] = False
 	return result
 
 
