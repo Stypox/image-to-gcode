@@ -324,7 +324,8 @@ def sobel(image):
 	Gy = ndimage.sobel(image, axis=1)
 	res = np.hypot(Gx, Gy)
 	res /= np.max(res)
-	return np.array(res * 255, dtype=np.uint8)[:, :, 0:3]
+	res = np.array(res * 255, dtype=np.uint8)
+	return res[2:-2, 2:-2, 0:3]
 
 def convertToBinaryEdges(edges, threshold):
 	result = np.maximum.reduce([edges[:, :, 0], edges[:, :, 1], edges[:, :, 2]]) >= threshold
@@ -367,7 +368,6 @@ def main():
 		edges = np.invert(image)
 	else: # Args.edges == "white"
 		edges = image
-
 	edges = convertToBinaryEdges(edges, Args.threshold)
 
 	converter = EdgesToGcode(edges)
