@@ -318,13 +318,16 @@ class EdgesToGcode:
 
 
 def sobel(image):
+	image = np.array(image, dtype=float)
+	image /= 255.0
 	Gx = ndimage.sobel(image, axis=0)
 	Gy = ndimage.sobel(image, axis=1)
-	return np.hypot(Gx, Gy)
+	res = np.hypot(Gx, Gy)
+	res /= np.max(res)
+	return np.array(res * 255, dtype=np.uint8)[:, :, 0:3]
 
 def convertToBinaryEdges(edges, threshold):
-	result = np.ones(np.shape(edges)[0:2], dtype=bool)
-	result[(edges[:, :, 0] + edges[:, :, 1] + edges[:, :, 2]) < threshold] = False
+	result = np.maximum.reduce([edges[:, :, 0], edges[:, :, 1], edges[:, :, 2]]) >= threshold
 	if np.shape(edges)[2] > 3:
 		result[edges[:, :, 3] < threshold] = False
 	return result
@@ -341,14 +344,15 @@ def parseArgs(namespace):
 		help="File in which to save the gcode result")
 	argParser.add_argument("--dot-output", type=argparse.FileType('w'), metavar="FILE",
 		help="Optional file in which to save the graph (in DOT format) generated during an intermediary step of gcode generation")
-	argParser.add_argument("-e", "--edges", action="store_true",
-		help="Consider the input file already as an edges matrix, not as an image of which to detect the edges")
+	argParser.add_argument("-e", "--edges", type=str, metavar="MODE",
+		help="Consider the input file already as an edges matrix, not as an image of which to detect the edges. MODE should be either `white` or `black`, that is the color of the edges in the image. The image should only be made of white or black pixels.")
 	argParser.add_argument("-t", "--threshold", type=int, default=32, metavar="VALUE",
 		help="The threshold in range (0,255) above which to consider a pixel as part of an edge (after Sobel was applied to the image or on reading the edges from file with the --edges option)")
 
 	argParser.parse_args(namespace=namespace)
 
-
+	if namespace.edges is not None and namespace.edges not in ["white", "black"]:
+		argParser.error("mode for --edges should be `white` or `black`")
 	if namespace.threshold <= 0 or namespace.threshold >= 255:
 		argParser.error("value for --threshold should be in range (0,255)")
 
@@ -357,10 +361,13 @@ def main():
 	parseArgs(Args)
 
 	image = imageio.imread(Args.input)
-	if Args.edges:
-		edges = image
-	else:
+	if Args.edges is None:
 		edges = sobel(image)
+	elif Args.edges == "black":
+		edges = np.invert(image)
+	else: # Args.edges == "white"
+		edges = image
+
 	edges = convertToBinaryEdges(edges, Args.threshold)
 
 	converter = EdgesToGcode(edges)
